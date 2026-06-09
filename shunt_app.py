@@ -19,13 +19,13 @@ st.header("I этап. Определение прогноза врожденн�
 
 c1, c2 = st.columns(2)
 with c1:
-    x1 = st.checkbox("Двустороннее поражение почек (Х1)")
-    x2 = st.checkbox("Мужской пол (Х2)")
+    x1 = st.checkbox("Двустороннее поражение почек (X1)")
+    x2 = st.checkbox("Мужской пол (X2)")
 with c2:
-    x3 = st.text_input("Продольный размер почки, мм (Х3)")
-    x4 = st.text_input("Толщина паренхимы, мм (Х4)")
-    x5 = st.text_input("Индекс васкуляризации VI (Х5)")
-    x6 = st.text_input("Индекс потока FI (Х6)")
+    x3 = st.text_input("Продольный размер почки, мм (X3)")
+    x4 = st.text_input("Толщина паренхимы, мм (X4)")
+    x5 = st.text_input("Индекс васкуляризации VI (X5)")
+    x6 = st.text_input("Индекс потока FI (X6)")
 
 def calc_wi():
     vals = [
@@ -37,7 +37,7 @@ def calc_wi():
         num_or_none(x6),
     ]
     if None in vals[2:]:
-        st.session_state.wi_error = "Заполните все числовые поля (Х3-Х6)."
+        st.session_state.wi_error = "Заполните все числовые поля (X3-X6)."
         return
     b = np.array([-0.292, -1.551, -0.054, 0.221, 0.065, 0.416])
     wi = float(np.dot(b, vals) - 4.673)
