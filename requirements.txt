@@ -3,3 +3,6 @@ scikit-learn
 joblib
 numpy
 plotly
+pandas
+faster-whisper==1.1.1
+edge-tts==7.2.7
