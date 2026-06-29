@@ -176,6 +176,60 @@ def _render_attempt_rows(state_prefix: str) -> None:
     st.table(rows)
 
 
+def _render_correction_ui(
+    session: VoiceSession,
+    fields: list[FieldSpec],
+    *,
+    state_prefix: str,
+) -> None:
+    values = session.get_values()
+    if not values:
+        return
+
+    fields_by_key = {field.key: field for field in fields}
+    available_fields = [field for field in fields if field.key in values]
+    with st.expander("Исправить распознанное значение"):
+        selected_key = st.selectbox(
+            "Поле",
+            options=[field.key for field in available_fields],
+            format_func=lambda key: fields_by_key[key].label,
+            key=f"{state_prefix}vh_correction_field",
+        )
+        selected_field = fields_by_key[selected_key]
+        current_value = values[selected_key]
+
+        if selected_field.field_type is FieldType.BOOLEAN:
+            corrected_value = st.selectbox(
+                "Правильное значение",
+                options=[0, 1],
+                index=1 if current_value == 1 else 0,
+                format_func=lambda value: "Да" if value == 1 else "Нет",
+                key=f"{state_prefix}vh_correction_value_{selected_key}",
+            )
+        else:
+            corrected_value = st.number_input(
+                "Правильное значение",
+                min_value=selected_field.min_value,
+                max_value=selected_field.max_value,
+                value=float(current_value),
+                step=0.1,
+                key=f"{state_prefix}vh_correction_value_{selected_key}",
+            )
+            if float(corrected_value).is_integer():
+                corrected_value = int(corrected_value)
+
+        if st.button("Сохранить исправление", key=f"{state_prefix}vh_apply_correction"):
+            session.update_value(selected_key, corrected_value)
+            _append_attempt_row(
+                selected_field,
+                state_prefix=state_prefix,
+                heard="ручная правка",
+                value=corrected_value,
+                status="Исправлено",
+            )
+            st.rerun()
+
+
 def _render_prompt_step(
     session: VoiceSession,
     field: FieldSpec,
@@ -217,7 +271,9 @@ def _render_listen_step(
     *,
     state_prefix: str,
 ) -> None:
-    attempt = st.session_state.setdefault(_audio_attempt_key(state_prefix, session.index), 0)
+    attempt = st.session_state.setdefault(
+        _audio_attempt_key(state_prefix, session.index), 0
+    )
     pending_key = _pending_audio_key(state_prefix, session.index)
     pending_audio = st.session_state.get(pending_key)
     if pending_audio is not None:
@@ -262,7 +318,34 @@ def _process_audio_bytes(
     st.session_state.pop(pending_key, None)
 
     value = normalize(heard, field)
-    if value is not None and field.field_type is FieldType.NUMBER and is_ambiguous_round_tens(heard):
+    if (
+        value is not None
+        and field.field_type is FieldType.NUMBER
+        and field.min_confident_value is not None
+        and value < field.min_confident_value
+    ):
+        session.retry(
+            "Распознано подозрительно маленькое число. "
+            "Повторите значение полностью или исправьте вручную ниже."
+        )
+        _append_attempt_row(
+            field,
+            state_prefix=state_prefix,
+            heard=heard,
+            value=value,
+            status="Нужно уточнить",
+        )
+        if _tts_played_key(state_prefix, session.index) in st.session_state:
+            del st.session_state[_tts_played_key(state_prefix, session.index)]
+        st.session_state[_audio_attempt_key(state_prefix, session.index)] = attempt + 1
+        st.rerun()
+        return
+
+    if (
+        value is not None
+        and field.field_type is FieldType.NUMBER
+        and is_ambiguous_round_tens(heard)
+    ):
         session.retry(
             "Услышано только круглое десятковое число. "
             "Повторите значение полностью, например «сорок пять»."
@@ -401,6 +484,7 @@ def render_voice_session(
         st.warning(session.last_error)
 
     _render_attempt_rows(state_prefix)
+    _render_correction_ui(session, fields, state_prefix=state_prefix)
 
     if session.status is SessionStatus.PROMPT:
         _render_prompt_step(session, field, state_prefix=state_prefix)

@@ -20,6 +20,7 @@ class FieldSpec:
     tts_prompt: str
     min_value: float | None = None
     max_value: float | None = None
+    min_confident_value: float | None = None
     join_digit_sequence: bool = False
     true_labels: Tuple[str, ...] = ("да", "есть", "имеется", "положительно")
     false_labels: Tuple[str, ...] = ("нет", "отсутствует", "отрицательно")

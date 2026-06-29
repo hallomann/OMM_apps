@@ -55,6 +55,17 @@ class VoiceSessionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             session.record_value("ktr1", 50)
 
+    def test_update_recorded_value(self) -> None:
+        session = VoiceSession(SFFT_FIELDS)
+        session.start()
+        session.record_value("ph", 0)
+
+        session.update_value("ph", 1)
+        self.assertEqual(session.get_values()["ph"], 1)
+
+        with self.assertRaises(ValueError):
+            session.update_value("ktr1", 50)
+
 
 if __name__ == "__main__":
     unittest.main()

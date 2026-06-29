@@ -51,6 +51,14 @@ class VoiceSession:
         self.values[key] = value
         self.last_error = None
 
+    def update_value(self, key: str, value: Any) -> None:
+        if key not in {field.key for field in self.fields}:
+            raise ValueError(f"Unknown field key {key!r}")
+        if key not in self.values:
+            raise ValueError(f"Field {key!r} has no recorded value yet")
+        self.values[key] = value
+        self.last_error = None
+
     def advance(self) -> None:
         if self.status is SessionStatus.DONE:
             return

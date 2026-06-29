@@ -5,31 +5,24 @@ SFFT_FIELDS: list[FieldSpec] = [
         key="ph",
         label="ПХ — предлежание хориона",
         field_type=FieldType.BOOLEAN,
-        tts_prompt=(
-            "ПХ — предлежание хориона. "
-            "Скажите значение: есть или нет."
-        ),
+        tts_prompt=("ПХ — предлежание хориона. " "Скажите значение: есть или нет."),
     ),
     FieldSpec(
         key="ktr1",
         label="КТР1 (мм)",
         field_type=FieldType.NUMBER,
-        tts_prompt=(
-            "КТР первого плода в миллиметрах. "
-            "Скажите число."
-        ),
+        tts_prompt=("КТР первого плода в миллиметрах. " "Скажите число."),
         min_value=0.0,
+        min_confident_value=10.0,
         join_digit_sequence=True,
     ),
     FieldSpec(
         key="ktr2",
         label="КТР2 (мм)",
         field_type=FieldType.NUMBER,
-        tts_prompt=(
-            "КТР второго плода в миллиметрах. "
-            "Скажите число."
-        ),
+        tts_prompt=("КТР второго плода в миллиметрах. " "Скажите число."),
         min_value=0.0,
+        min_confident_value=10.0,
         join_digit_sequence=True,
     ),
     FieldSpec(
@@ -37,8 +30,7 @@ SFFT_FIELDS: list[FieldSpec] = [
         label="ПИ 2-го плода более 95%",
         field_type=FieldType.BOOLEAN,
         tts_prompt=(
-            "ПИ второго плода более девяноста пяти процентов. "
-            "Скажите: да или нет."
+            "ПИ второго плода более девяноста пяти процентов. " "Скажите: да или нет."
         ),
     ),
     FieldSpec(
