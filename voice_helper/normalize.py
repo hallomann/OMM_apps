@@ -50,6 +50,8 @@ _HUNDREDS: dict[str, int] = {
 def _prepare_text(text: str) -> str:
     cleaned = text.strip().lower().replace("ё", "е")
     cleaned = cleaned.replace(",", ".")
+    cleaned = re.sub(r"[^\w\s.\-]", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
 
@@ -57,20 +59,24 @@ def normalize_boolean(text: str, field: FieldSpec) -> int | None:
     cleaned = _prepare_text(text)
     if not cleaned:
         return None
+    tokens = set(cleaned.split())
 
     for label in field.true_labels:
-        if label in cleaned:
+        if label in tokens:
             return 1
     for label in field.false_labels:
-        if label in cleaned:
+        if label in tokens:
             return 0
     return None
 
 
 def _parse_spoken_integer(cleaned: str) -> int | None:
-    tokens = cleaned.split()
+    tokens = [token.strip(".") for token in cleaned.split()]
     if not tokens:
         return None
+
+    if len(tokens) > 1 and all(token in _ONES for token in tokens):
+        return int("".join(str(_ONES[token]) for token in tokens))
 
     total = 0
     for token in tokens:
@@ -98,6 +104,18 @@ def normalize_number(text: str) -> float | None:
     if integer is not None:
         return float(integer)
     return None
+
+
+def is_ambiguous_round_tens(text: str) -> bool:
+    """Return True when STT heard only a tens word, e.g. "сорок".
+
+    In voice input this is risky: "сорок пять" can be truncated by STT to
+    "сорок", silently changing 45 to 40. The UI can ask the user to repeat
+    such values as digits: "четыре пять" or "четыре ноль".
+    """
+    cleaned = _prepare_text(text)
+    tokens = [token.strip(".") for token in cleaned.split()]
+    return len(tokens) == 1 and tokens[0] in _TENS
 
 
 def normalize(text: str, field: FieldSpec) -> Any | None:

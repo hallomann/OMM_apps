@@ -4,8 +4,8 @@ from typing import Any
 
 import streamlit as st
 
-from voice_helper.normalize import normalize
-from voice_helper.schema import FieldSpec
+from voice_helper.normalize import is_ambiguous_round_tens, normalize
+from voice_helper.schema import FieldSpec, FieldType
 from voice_helper.session import SessionStatus, VoiceSession
 from voice_helper.stt import transcribe
 from voice_helper.tts import build_listen_message, speak
@@ -17,6 +17,18 @@ def _session_key(state_prefix: str) -> str:
 
 def _auto_calculate_key(state_prefix: str) -> str:
     return f"{state_prefix}vh_auto_calculate"
+
+
+def _completed_rows_key(state_prefix: str) -> str:
+    return f"{state_prefix}vh_completed_rows"
+
+
+def _attempt_rows_key(state_prefix: str) -> str:
+    return f"{state_prefix}vh_attempt_rows"
+
+
+def _audio_attempt_key(state_prefix: str, index: int) -> str:
+    return f"{state_prefix}vh_audio_attempt_{index}"
 
 
 def _tts_played_key(state_prefix: str, index: int) -> str:
@@ -32,19 +44,47 @@ def _get_session(state_prefix: str) -> VoiceSession | None:
     return session if isinstance(session, VoiceSession) else None
 
 
-def _clear_voice_keys(state_prefix: str) -> None:
+def _clear_voice_keys(state_prefix: str, *, keep_completed: bool = False) -> None:
     prefix = f"{state_prefix}vh_"
+    protected = {
+        _completed_rows_key(state_prefix),
+    }
     for key in list(st.session_state.keys()):
-        if key.startswith(prefix):
+        if key.startswith(prefix) and not (keep_completed and key in protected):
             del st.session_state[key]
 
 
-def _format_value(value: Any) -> str:
-    if isinstance(value, bool):
+def _format_value(field: FieldSpec, value: Any) -> str:
+    if field.field_type is FieldType.BOOLEAN:
         return "Да" if value else "Нет"
-    if value in (0, 1) and not isinstance(value, bool):
-        return "Да" if value == 1 else "Нет"
     return str(value)
+
+
+def _append_attempt_row(
+    field: FieldSpec,
+    *,
+    state_prefix: str,
+    heard: str,
+    value: Any,
+    status: str,
+) -> None:
+    rows = st.session_state.setdefault(_attempt_rows_key(state_prefix), [])
+    rows.append(
+        {
+            "Поле": field.label,
+            "Услышано": heard or "—",
+            "Значение": _format_value(field, value) if value is not None else "—",
+            "Статус": status,
+        }
+    )
+
+
+def _render_attempt_rows(state_prefix: str) -> None:
+    rows = st.session_state.get(_attempt_rows_key(state_prefix))
+    if not rows:
+        return
+    st.markdown("**Текущий голосовой ввод**")
+    st.table(rows)
 
 
 def _render_prompt_step(
@@ -60,7 +100,6 @@ def _render_prompt_step(
     if st.session_state.get(played_key):
         if session.status is SessionStatus.PROMPT:
             session.mark_listening()
-            st.rerun()
         return
 
     try:
@@ -71,7 +110,6 @@ def _render_prompt_step(
 
     st.session_state[played_key] = True
     session.mark_listening()
-    st.rerun()
 
 
 def _render_listen_step(
@@ -81,38 +119,65 @@ def _render_listen_step(
     *,
     state_prefix: str,
 ) -> None:
+    attempt = st.session_state.setdefault(_audio_attempt_key(state_prefix, session.index), 0)
     audio_data = st.audio_input(
         "Скажите значение",
-        key=f"{state_prefix}vh_audio_{session.index}",
+        key=f"{state_prefix}vh_audio_{session.index}_{attempt}",
     )
 
-    if not st.button(
-        "Продолжить",
-        key=f"{state_prefix}vh_submit_{session.index}",
-        type="primary",
-    ):
-        return
-
     if audio_data is None:
-        session.retry("Сначала запишите ответ.")
-        st.rerun()
+        st.caption("После записи ответ будет обработан автоматически.")
         return
 
     heard = transcribe(audio_data.getvalue(), language="ru")
     value = normalize(heard, field)
-    if value is None:
-        session.retry(f"Не удалось распознать значение. Услышано: «{heard}».")
+    if value is not None and field.field_type is FieldType.NUMBER and is_ambiguous_round_tens(heard):
+        session.retry(
+            "Услышано только круглое десятковое число. "
+            "Повторите значение цифрами по отдельности, например «четыре пять»."
+        )
+        _append_attempt_row(
+            field,
+            state_prefix=state_prefix,
+            heard=heard,
+            value=value,
+            status="Нужно повторить",
+        )
         if _tts_played_key(state_prefix, session.index) in st.session_state:
             del st.session_state[_tts_played_key(state_prefix, session.index)]
+        st.session_state[_audio_attempt_key(state_prefix, session.index)] = attempt + 1
         st.rerun()
         return
 
+    if value is None:
+        session.retry(f"Не удалось распознать значение. Услышано: «{heard}».")
+        _append_attempt_row(
+            field,
+            state_prefix=state_prefix,
+            heard=heard,
+            value=None,
+            status="Ошибка",
+        )
+        if _tts_played_key(state_prefix, session.index) in st.session_state:
+            del st.session_state[_tts_played_key(state_prefix, session.index)]
+        st.session_state[_audio_attempt_key(state_prefix, session.index)] = attempt + 1
+        st.rerun()
+        return
+
+    _append_attempt_row(
+        field,
+        state_prefix=state_prefix,
+        heard=heard,
+        value=value,
+        status="Принято",
+    )
     session.record_value(field.key, value)
     st.session_state[field.key] = value
     session.advance()
 
     if session.is_done():
         _finish_session(fields, state_prefix=state_prefix)
+        st.rerun()
     else:
         st.rerun()
 
@@ -126,14 +191,21 @@ def _finish_session(fields: list[FieldSpec], *, state_prefix: str) -> None:
         {
             "Поле": field.label,
             "Ключ": field.key,
-            "Значение": _format_value(session.get_values().get(field.key)),
+            "Значение": _format_value(field, session.get_values().get(field.key)),
         }
         for field in fields
     ]
-    st.subheader("Голосовой ввод завершён")
-    st.table(rows)
+    st.session_state[_completed_rows_key(state_prefix)] = rows
     st.session_state[_auto_calculate_key(state_prefix)] = True
     del st.session_state[_session_key(state_prefix)]
+
+
+def _render_completed_rows(state_prefix: str) -> None:
+    rows = st.session_state.get(_completed_rows_key(state_prefix))
+    if not rows:
+        return
+    st.subheader("Голосовой ввод завершён")
+    st.table(rows)
 
 
 def render_voice_session(
@@ -158,6 +230,8 @@ def render_voice_session(
             use_container_width=True,
             key=f"{state_prefix}vh_start",
         ):
+            _clear_voice_keys(state_prefix, keep_completed=True)
+            _init_voice_state(state_prefix)
             new_session = VoiceSession(fields)
             new_session.start()
             st.session_state[_session_key(state_prefix)] = new_session
@@ -170,13 +244,14 @@ def render_voice_session(
             use_container_width=True,
             key=f"{state_prefix}vh_cancel",
         ):
-            _clear_voice_keys(state_prefix)
+            _clear_voice_keys(state_prefix, keep_completed=True)
             _init_voice_state(state_prefix)
             st.info("Голосовой ввод прерван. Можно продолжить ручной ввод.")
             st.rerun()
 
     session = _get_session(state_prefix)
     if session is None or session.status is SessionStatus.IDLE:
+        _render_completed_rows(state_prefix)
         return
 
     if session.is_done():
@@ -193,9 +268,12 @@ def render_voice_session(
     if session.last_error:
         st.warning(session.last_error)
 
+    _render_attempt_rows(state_prefix)
+
     if session.status is SessionStatus.PROMPT:
         _render_prompt_step(session, field, state_prefix=state_prefix)
-    elif session.status is SessionStatus.LISTEN:
+
+    if session.status is SessionStatus.LISTEN:
         _render_listen_step(
             session,
             field,

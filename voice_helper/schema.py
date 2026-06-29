@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Tuple
+from typing import Tuple
 
 
 class FieldType(Enum):
@@ -21,7 +21,7 @@ class FieldSpec:
     min_value: float | None = None
     max_value: float | None = None
     true_labels: Tuple[str, ...] = ("да", "есть", "имеется", "положительно")
-    false_labels: Tuple[str, ...] = ("нет", "отсутствует", "не", "отрицательно")
+    false_labels: Tuple[str, ...] = ("нет", "отсутствует", "отрицательно")
 
     def validate_number(self, value: float) -> bool:
         if self.field_type is not FieldType.NUMBER:

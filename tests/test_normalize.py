@@ -1,7 +1,12 @@
 import unittest
 
 from configs.sfft_fields import SFFT_FIELDS
-from voice_helper.normalize import normalize, normalize_boolean, normalize_number
+from voice_helper.normalize import (
+    is_ambiguous_round_tens,
+    normalize,
+    normalize_boolean,
+    normalize_number,
+)
 from voice_helper.schema import FieldSpec, FieldType
 
 
@@ -32,6 +37,10 @@ class NormalizeNumberTests(unittest.TestCase):
 
     def test_spoken(self) -> None:
         self.assertEqual(normalize_number("пятьдесят два"), 52.0)
+        self.assertEqual(normalize_number("сорок один"), 41.0)
+        self.assertEqual(normalize_number("сорок, один"), 41.0)
+        self.assertEqual(normalize_number("сорок один."), 41.0)
+        self.assertEqual(normalize_number("четыре один"), 41.0)
         self.assertEqual(normalize_number("сто"), 100.0)
         self.assertEqual(normalize_number("ноль"), 0.0)
 
@@ -39,6 +48,13 @@ class NormalizeNumberTests(unittest.TestCase):
         self.assertIsNone(normalize_number(""))
         self.assertIsNone(normalize_number("abc"))
         self.assertIsNone(normalize_number("может пятьдесят"))
+
+    def test_ambiguous_round_tens(self) -> None:
+        self.assertTrue(is_ambiguous_round_tens("сорок"))
+        self.assertTrue(is_ambiguous_round_tens("сорок."))
+        self.assertFalse(is_ambiguous_round_tens("сорок пять"))
+        self.assertFalse(is_ambiguous_round_tens("четыре ноль"))
+        self.assertFalse(is_ambiguous_round_tens("40"))
 
 
 class NormalizeDispatcherTests(unittest.TestCase):

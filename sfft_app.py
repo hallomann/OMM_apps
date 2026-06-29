@@ -82,12 +82,14 @@ with st.form("inputs"):
     submitted = st.form_submit_button("Рассчитать")
 
 if submitted or consume_auto_calculate():
-    probability = compute_sfft(
+    st.session_state.sfft_probability = compute_sfft(
         st.session_state.ph,
         st.session_state.ktr1,
         st.session_state.ktr2,
         st.session_state.pi2,
         st.session_state.tvp_gt3,
     )
+
+if "sfft_probability" in st.session_state:
     st.markdown("---")
-    render_sfft_result(probability)
+    render_sfft_result(st.session_state.sfft_probability)
