@@ -19,6 +19,7 @@ SFFT_FIELDS: list[FieldSpec] = [
             "Скажите число."
         ),
         min_value=0.0,
+        join_digit_sequence=True,
     ),
     FieldSpec(
         key="ktr2",
@@ -29,6 +30,7 @@ SFFT_FIELDS: list[FieldSpec] = [
             "Скажите число."
         ),
         min_value=0.0,
+        join_digit_sequence=True,
     ),
     FieldSpec(
         key="pi2",

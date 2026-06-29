@@ -47,7 +47,14 @@ class NormalizeNumberTests(unittest.TestCase):
     def test_invalid(self) -> None:
         self.assertIsNone(normalize_number(""))
         self.assertIsNone(normalize_number("abc"))
-        self.assertIsNone(normalize_number("может пятьдесят"))
+
+    def test_noise_before_spoken_number(self) -> None:
+        self.assertEqual(normalize_number("в этом тридцать три"), 33.0)
+
+    def test_join_digit_sequence_only_when_enabled(self) -> None:
+        self.assertEqual(normalize_number("3-3"), 3.0)
+        self.assertEqual(normalize("3-3", SFFT_FIELDS[1]), 33)
+        self.assertEqual(normalize("в этом, 3-3!", SFFT_FIELDS[2]), 33)
 
     def test_ambiguous_round_tens(self) -> None:
         self.assertTrue(is_ambiguous_round_tens("сорок"))

@@ -70,8 +70,10 @@ def normalize_boolean(text: str, field: FieldSpec) -> int | None:
     return None
 
 
-def _parse_spoken_integer(cleaned: str) -> int | None:
-    tokens = [token.strip(".") for token in cleaned.split()]
+_NUMBER_WORDS = set(_ONES) | set(_TENS) | set(_HUNDREDS)
+
+
+def _parse_spoken_integer_from_tokens(tokens: list[str]) -> int | None:
     if not tokens:
         return None
 
@@ -91,14 +93,59 @@ def _parse_spoken_integer(cleaned: str) -> int | None:
     return total
 
 
-def normalize_number(text: str) -> float | None:
+def _parse_spoken_integer(cleaned: str) -> int | None:
+    tokens = [token.strip(".") for token in cleaned.split()]
+    return _parse_spoken_integer_from_tokens(tokens)
+
+
+def _parse_spoken_integer_sequence(cleaned: str) -> int | None:
+    tokens = [token.strip(".") for token in cleaned.split()]
+    sequences: list[list[str]] = []
+    current: list[str] = []
+    for token in tokens:
+        if token in _NUMBER_WORDS:
+            current.append(token)
+        elif current:
+            sequences.append(current)
+            current = []
+    if current:
+        sequences.append(current)
+
+    for sequence in reversed(sequences):
+        parsed = _parse_spoken_integer_from_tokens(sequence)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _parse_joined_digit_sequence(cleaned: str) -> float | None:
+    hyphen_match = re.search(r"(?<!\d)(\d)\s*-\s*(\d)(?!\d)", cleaned)
+    if hyphen_match:
+        return float(f"{hyphen_match.group(1)}{hyphen_match.group(2)}")
+
+    spaced_match = re.search(r"(?<!\d)(\d)\s+(\d)(?!\d)", cleaned)
+    if spaced_match:
+        return float(f"{spaced_match.group(1)}{spaced_match.group(2)}")
+    return None
+
+
+def normalize_number(text: str, *, join_digit_sequence: bool = False) -> float | None:
     cleaned = _prepare_text(text)
     if not cleaned:
         return None
 
+    if join_digit_sequence:
+        joined = _parse_joined_digit_sequence(cleaned)
+        if joined is not None:
+            return joined
+
     digit_match = re.search(r"-?\d+(?:\.\d+)?", cleaned)
     if digit_match:
         return float(digit_match.group(0))
+
+    sequence_integer = _parse_spoken_integer_sequence(cleaned)
+    if sequence_integer is not None:
+        return float(sequence_integer)
 
     integer = _parse_spoken_integer(cleaned)
     if integer is not None:
@@ -122,7 +169,7 @@ def normalize(text: str, field: FieldSpec) -> Any | None:
     if field.field_type is FieldType.BOOLEAN:
         return normalize_boolean(text, field)
 
-    value = normalize_number(text)
+    value = normalize_number(text, join_digit_sequence=field.join_digit_sequence)
     if value is None:
         return None
     if not field.validate_number(value):

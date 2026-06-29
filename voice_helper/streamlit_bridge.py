@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import base64
+import uuid
 from typing import Any
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from voice_helper.normalize import is_ambiguous_round_tens, normalize
 from voice_helper.schema import FieldSpec, FieldType
@@ -130,13 +132,20 @@ def _show_center_loader(message: str):
 
 def _render_autoplay_audio(audio_bytes: bytes) -> None:
     encoded = base64.b64encode(audio_bytes).decode("ascii")
-    st.markdown(
+    audio_id = f"vh_audio_{uuid.uuid4().hex}"
+    components.html(
         f"""
-        <audio autoplay controls style="width: 100%;">
+        <audio id="{audio_id}" autoplay controls style="width: 100%;">
             <source src="data:audio/mpeg;base64,{encoded}" type="audio/mpeg">
         </audio>
+        <script>
+        const audio = document.getElementById("{audio_id}");
+        if (audio) {{
+            audio.play().catch(() => {{}});
+        }}
+        </script>
         """,
-        unsafe_allow_html=True,
+        height=56,
     )
 
 
