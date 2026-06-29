@@ -5,7 +5,11 @@ import streamlit as st
 
 from clinical_ui import render_result
 from configs.sfft_fields import SFFT_FIELDS
-from voice_helper.streamlit_bridge import consume_auto_calculate, render_voice_session
+from voice_helper.streamlit_bridge import (
+    consume_auto_calculate,
+    is_voice_session_active,
+    render_voice_session,
+)
 
 st.set_page_config(
     page_title="СФФТ: калькулятор риска", page_icon="🧮", layout="centered"
@@ -47,6 +51,13 @@ st.caption(
     "Один клик — пошаговый ввод всех признаков голосом."
 )
 render_voice_session(SFFT_FIELDS)
+
+if is_voice_session_active():
+    st.info(
+        "Калькулятор временно скрыт: значения собираются в голосовом мастере "
+        "и будут перенесены в поля после завершения всех шагов."
+    )
+    st.stop()
 
 st.markdown("---")
 st.subheader("Ввод признаков")

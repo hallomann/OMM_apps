@@ -44,6 +44,11 @@ def _get_session(state_prefix: str) -> VoiceSession | None:
     return session if isinstance(session, VoiceSession) else None
 
 
+def is_voice_session_active(*, state_prefix: str = "") -> bool:
+    session = _get_session(state_prefix)
+    return session is not None and session.status is not SessionStatus.IDLE
+
+
 def _clear_voice_keys(state_prefix: str, *, keep_completed: bool = False) -> None:
     prefix = f"{state_prefix}vh_"
     protected = {
@@ -172,7 +177,6 @@ def _render_listen_step(
         status="Принято",
     )
     session.record_value(field.key, value)
-    st.session_state[field.key] = value
     session.advance()
 
     if session.is_done():
@@ -195,6 +199,8 @@ def _finish_session(fields: list[FieldSpec], *, state_prefix: str) -> None:
         }
         for field in fields
     ]
+    for field in fields:
+        st.session_state[field.key] = session.get_values().get(field.key)
     st.session_state[_completed_rows_key(state_prefix)] = rows
     st.session_state[_auto_calculate_key(state_prefix)] = True
     del st.session_state[_session_key(state_prefix)]
