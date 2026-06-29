@@ -59,7 +59,7 @@ def normalize_boolean(text: str, field: FieldSpec) -> int | None:
     cleaned = _prepare_text(text)
     if not cleaned:
         return None
-    tokens = set(cleaned.split())
+    tokens = set(re.findall(r"\w+", cleaned))
 
     for label in field.true_labels:
         if label in tokens:
@@ -111,7 +111,7 @@ def is_ambiguous_round_tens(text: str) -> bool:
 
     In voice input this is risky: "сорок пять" can be truncated by STT to
     "сорок", silently changing 45 to 40. The UI can ask the user to repeat
-    such values as digits: "четыре пять" or "четыре ноль".
+    such values as a full number.
     """
     cleaned = _prepare_text(text)
     tokens = [token.strip(".") for token in cleaned.split()]

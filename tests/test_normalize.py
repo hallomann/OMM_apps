@@ -15,12 +15,12 @@ class NormalizeBooleanTests(unittest.TestCase):
         self.field = SFFT_FIELDS[0]
 
     def test_true_variants(self) -> None:
-        for phrase in ("да", "есть", "имеется", "Да, есть"):
+        for phrase in ("да", "есть", "имеется", "Да, есть", "Есть!"):
             with self.subTest(phrase=phrase):
                 self.assertEqual(normalize_boolean(phrase, self.field), 1)
 
     def test_false_variants(self) -> None:
-        for phrase in ("нет", "отсутствует", "Нет"):
+        for phrase in ("нет", "отсутствует", "Нет", "Нет."):
             with self.subTest(phrase=phrase):
                 self.assertEqual(normalize_boolean(phrase, self.field), 0)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from typing import Any
 
 import streamlit as st
@@ -35,6 +36,14 @@ def _tts_played_key(state_prefix: str, index: int) -> str:
     return f"{state_prefix}vh_tts_played_{index}"
 
 
+def _tts_processing_key(state_prefix: str, index: int) -> str:
+    return f"{state_prefix}vh_tts_processing_{index}"
+
+
+def _pending_audio_key(state_prefix: str, index: int) -> str:
+    return f"{state_prefix}vh_pending_audio_{index}"
+
+
 def _init_voice_state(state_prefix: str) -> None:
     st.session_state.setdefault(_auto_calculate_key(state_prefix), False)
 
@@ -63,6 +72,72 @@ def _format_value(field: FieldSpec, value: Any) -> str:
     if field.field_type is FieldType.BOOLEAN:
         return "Да" if value else "Нет"
     return str(value)
+
+
+def _show_center_loader(message: str):
+    placeholder = st.empty()
+    placeholder.markdown(
+        f"""
+        <style>
+        .vh-loader {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            inset: 0;
+            z-index: 999999;
+            background: rgba(8, 13, 24, 0.74);
+            backdrop-filter: blur(5px);
+        }}
+        .vh-loader-card {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            min-width: 280px;
+            padding: 28px 34px;
+            border-radius: 22px;
+            background: linear-gradient(135deg, rgba(31, 111, 235, 0.28), rgba(47, 179, 255, 0.12));
+            border: 1px solid rgba(147, 197, 253, 0.34);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+            color: #dbeafe;
+            font-weight: 600;
+            text-align: center;
+        }}
+        .vh-spinner {{
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 4px solid rgba(147, 197, 253, 0.28);
+            border-top-color: #38bdf8;
+            animation: vh-spin 0.9s linear infinite;
+        }}
+        @keyframes vh-spin {{
+            to {{ transform: rotate(360deg); }}
+        }}
+        </style>
+        <div class="vh-loader">
+            <div class="vh-loader-card">
+                <div class="vh-spinner"></div>
+                <div>{message}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    return placeholder
+
+
+def _render_autoplay_audio(audio_bytes: bytes) -> None:
+    encoded = base64.b64encode(audio_bytes).decode("ascii")
+    st.markdown(
+        f"""
+        <audio autoplay controls style="width: 100%;">
+            <source src="data:audio/mpeg;base64,{encoded}" type="audio/mpeg">
+        </audio>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _append_attempt_row(
@@ -102,17 +177,26 @@ def _render_prompt_step(
     st.info(prompt)
 
     played_key = _tts_played_key(state_prefix, session.index)
+    processing_key = _tts_processing_key(state_prefix, session.index)
     if st.session_state.get(played_key):
         if session.status is SessionStatus.PROMPT:
             session.mark_listening()
         return
 
+    if not st.session_state.get(processing_key):
+        st.session_state[processing_key] = True
+        st.rerun()
+
+    loader = _show_center_loader("Готовлю голосовую подсказку...")
     try:
         audio_bytes = speak(prompt)
-        st.audio(audio_bytes, format="audio/mp3")
+        _render_autoplay_audio(audio_bytes)
     except Exception as exc:
         st.warning(f"Озвучка недоступна: {exc}. Прочитайте текст выше.")
+    finally:
+        loader.empty()
 
+    st.session_state.pop(processing_key, None)
     st.session_state[played_key] = True
     session.mark_listening()
 
@@ -125,6 +209,23 @@ def _render_listen_step(
     state_prefix: str,
 ) -> None:
     attempt = st.session_state.setdefault(_audio_attempt_key(state_prefix, session.index), 0)
+    pending_key = _pending_audio_key(state_prefix, session.index)
+    pending_audio = st.session_state.get(pending_key)
+    if pending_audio is not None:
+        loader = _show_center_loader("Распознаю ответ и подготавливаю следующий шаг...")
+        try:
+            _process_audio_bytes(
+                pending_audio,
+                session,
+                field,
+                fields,
+                state_prefix=state_prefix,
+                attempt=attempt,
+            )
+        finally:
+            loader.empty()
+        return
+
     audio_data = st.audio_input(
         "Скажите значение",
         key=f"{state_prefix}vh_audio_{session.index}_{attempt}",
@@ -134,12 +235,28 @@ def _render_listen_step(
         st.caption("После записи ответ будет обработан автоматически.")
         return
 
-    heard = transcribe(audio_data.getvalue(), language="ru")
+    st.session_state[pending_key] = audio_data.getvalue()
+    st.rerun()
+
+
+def _process_audio_bytes(
+    audio_bytes: bytes,
+    session: VoiceSession,
+    field: FieldSpec,
+    fields: list[FieldSpec],
+    *,
+    state_prefix: str,
+    attempt: int,
+) -> None:
+    pending_key = _pending_audio_key(state_prefix, session.index)
+    heard = transcribe(audio_bytes, language="ru")
+    st.session_state.pop(pending_key, None)
+
     value = normalize(heard, field)
     if value is not None and field.field_type is FieldType.NUMBER and is_ambiguous_round_tens(heard):
         session.retry(
             "Услышано только круглое десятковое число. "
-            "Повторите значение цифрами по отдельности, например «четыре пять»."
+            "Повторите значение полностью, например «сорок пять»."
         )
         _append_attempt_row(
             field,
