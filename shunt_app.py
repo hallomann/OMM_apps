@@ -127,8 +127,8 @@ if st.session_state.get("wi", -1) >= 0:
         ]
         
         if None in vals[:4]:
-        st.session_state.di_error = "Заполните все числовые поля (Y1-Y4)."
-        return
+            st.session_state.di_error = "Заполните все числовые поля (Y1-Y4)."
+            return
         
         a = np.array([0.017, 0.222, 0.565, -0.388, 5.589, 7.005])
         
