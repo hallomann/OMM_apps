@@ -125,15 +125,15 @@ if st.session_state.get("wi", -1) >= 0:
             int(st.session_state["y5"]),
             int(st.session_state["y6"]),
         ]
-
-    if None in vals[:4]:
+        
+        if None in vals[:4]:
         st.session_state.di_error = "Заполните все числовые поля (Y1-Y4)."
         return
-
-    a = np.array([0.017, 0.222, 0.565, -0.388, 5.589, 7.005])
-
-    st.session_state.di = float(np.dot(a, vals) - 0.463)
-    st.session_state.di_error = None
+        
+        a = np.array([0.017, 0.222, 0.565, -0.388, 5.589, 7.005])
+        
+        st.session_state.di = float(np.dot(a, vals) - 0.463)
+        st.session_state.di_error = None
 
     st.button("Рассчитать DI", on_click=calc_di)
 
