@@ -117,7 +117,7 @@ if st.session_state.get("wi", -1) >= 0:
         y6 = st.checkbox("Кистозная дисплазия (Y6)", key="y6")
 
     def calc_di():
-    vals = [
+        vals = [
         num_or_none(st.session_state["y1"]),
         num_or_none(st.session_state["y2"]),
         num_or_none(st.session_state["y3"]),
