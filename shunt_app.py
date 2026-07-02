@@ -118,13 +118,13 @@ if st.session_state.get("wi", -1) >= 0:
 
     def calc_di():
         vals = [
-        num_or_none(st.session_state["y1"]),
-        num_or_none(st.session_state["y2"]),
-        num_or_none(st.session_state["y3"]),
-        num_or_none(st.session_state["y4"]),
-        int(st.session_state["y5"]),
-        int(st.session_state["y6"]),
-    ]
+            num_or_none(st.session_state["y1"]),
+            num_or_none(st.session_state["y2"]),
+            num_or_none(st.session_state["y3"]),
+            num_or_none(st.session_state["y4"]),
+            int(st.session_state["y5"]),
+            int(st.session_state["y6"]),
+        ]
 
     if None in vals[:4]:
         st.session_state.di_error = "Заполните все числовые поля (Y1-Y4)."
